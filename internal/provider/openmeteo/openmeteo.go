@@ -1,6 +1,7 @@
-package provider
+package openmeteo
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,35 +17,21 @@ const (
 	openMeteoAPI = "https://api.open-meteo.com/v1/forecast"
 )
 
-type ResultsGeocode struct {
-	Name      string  `json:"name"`
-	Latitude  float64 `json:"latitude"`
-	Longitude float64 `json:"longitude"`
-	Country   string  `json:"country"`
-	Admin1    string  `json:"admin1"`
+type Client struct {
+	httpClient *http.Client
 }
 
-type GeocodeWrapper struct {
-	Results []ResultsGeocode `json:"results"`
+func NewClient() *Client {
+	c := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	return &Client{
+		httpClient: c,
+	}
 }
 
-type CurrentWeatherDTO struct {
-	Temperature2m       float64 `json:"temperature_2m"`
-	ApparentTemperature float64 `json:"apparent_temperature"`
-	RelativeHumidity2m  uint    `json:"relative_humidity_2m"`
-	WindSpeed10m        float64 `json:"wind_speed_10m"`
-	WindDirection10m    uint    `json:"wind_direction_10m"`
-	Precipitation       float64 `json:"precipitation"`
-	PressureMsl         float64 `json:"pressure_msl"`
-	WeatherCode         uint    `json:"weather_code"`
-	Visibility          float64 `json:"visibility"`
-}
-
-type OpenMeteoWrapper struct {
-	Current CurrentWeatherDTO `json:"current"`
-}
-
-func Geocode(city string) (name string, lat, lon float64, err error) {
+func (c *Client) geocode(ctx context.Context, city string) (name string, lat, lon float64, err error) {
 	api, err := url.ParseRequestURI(geoCodingAPI)
 	if err != nil {
 		return "", 0, 0, err
@@ -56,7 +43,12 @@ func Geocode(city string) (name string, lat, lon float64, err error) {
 
 	api.RawQuery = params.Encode()
 
-	res, err := http.Get(api.String())
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, api.String(), nil)
+	if err != nil {
+		return "", 0, 0, err
+	}
+
+	res, err := c.httpClient.Do(req)
 	if err != nil {
 		return "", 0, 0, err
 	}
@@ -82,10 +74,10 @@ func Geocode(city string) (name string, lat, lon float64, err error) {
 	return fmt.Sprintf("%s, %s, %s", dto.Results[0].Name, dto.Results[0].Admin1, dto.Results[0].Country), dto.Results[0].Latitude, dto.Results[0].Longitude, err
 }
 
-func GetCurrentWeather(lat, lon float64) (domain.Today, error) {
+func (c *Client) getCurrentWeather(ctx context.Context, lat, lon float64) (*ForecastResp, error) {
 	api, err := url.ParseRequestURI(openMeteoAPI)
 	if err != nil {
-		return domain.Today{}, err
+		return nil, err
 	}
 
 	latitude := strconv.FormatFloat(lat, 'f', -1, 64)
@@ -95,43 +87,73 @@ func GetCurrentWeather(lat, lon float64) (domain.Today, error) {
 	params.Set("latitude", latitude)
 	params.Set("longitude", longitude)
 	params.Set("forecast_days", "1")
+	params.Set("hourly", "temperature_2m,weather_code,wind_speed_10m,precipitation_probability")
+	params.Set("daily", "temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,weather_code")
 	params.Set("current", "temperature_2m,visibility,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_direction_10m,precipitation,pressure_msl,weather_code")
 
 	api.RawQuery = params.Encode()
 
-	res, err := http.Get(api.String())
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, api.String(), nil)
 	if err != nil {
-		return domain.Today{}, err
+		return nil, err
+	}
+
+	res, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return domain.Today{}, errors.New(res.Status)
+		return nil, errors.New(res.Status)
 	}
 
-	var dto OpenMeteoWrapper
+	var dto ForecastResp
 
 	decoder := json.NewDecoder(res.Body)
 	err = decoder.Decode(&dto)
 
 	if err != nil {
+		return nil, err
+	}
+
+	return &dto, nil
+}
+
+func (c *Client) GetToday(ctx context.Context, city string) (domain.Today, error) {
+	name, lat, lon, err := c.geocode(ctx, city)
+	if err != nil {
 		return domain.Today{}, err
 	}
 
-	toReturn := domain.Today{
-		City:          "",
-		Temperature:   dto.Current.Temperature2m,
-		FeelsLike:     dto.Current.ApparentTemperature,
-		Conditions:    weatherCodeToText(dto.Current.WeatherCode),
-		WindSpeed:     dto.Current.WindSpeed10m,
-		WindDirection: dto.Current.WindDirection10m,
-		Humidity:      dto.Current.RelativeHumidity2m,
-		Pressure:      dto.Current.PressureMsl,
-		Visibility:    dto.Current.Visibility,
-		Precipitation: dto.Current.Precipitation,
-		UpdatedAt:     time.Now(),
+	forecast, err := c.getCurrentWeather(ctx, lat, lon)
+	if err != nil {
+		return domain.Today{}, err
 	}
-	return toReturn, nil
+
+	return domain.Today{
+		City:          name,
+		Temperature:   forecast.CurrentDTO.Temperature2m,
+		FeelsLike:     forecast.CurrentDTO.ApparentTemperature,
+		Conditions:    weatherCodeToText(forecast.CurrentDTO.WeatherCode),
+		WindSpeed:     forecast.CurrentDTO.WindSpeed10m,
+		WindDirection: forecast.CurrentDTO.WindDirection10m,
+		Humidity:      forecast.CurrentDTO.RelativeHumidity2m,
+		Pressure:      forecast.CurrentDTO.PressureMsl,
+		Visibility:    forecast.CurrentDTO.Visibility,
+		Precipitation: forecast.CurrentDTO.Precipitation,
+		UpdatedAt:     time.Now(),
+	}, nil
+}
+
+// https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.41&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,weather_code&hourly=,temperature_2m,weather_code,wind_speed_10m,precipitation_probability&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_direction_10m,precipitation,pressure_msl,weather_code&forecast_days=1
+
+func (c *Client) GetHourly(ctx context.Context, city string, hours int) ([]domain.HourlyEntry, error) {
+	return nil, nil
+}
+
+func (c *Client) GetDaily(ctx context.Context, city string, days int) ([]domain.DailyEntry, error) {
+	return nil, nil
 }
 
 func weatherCodeToText(code uint) string {
