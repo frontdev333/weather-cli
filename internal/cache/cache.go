@@ -1,6 +1,9 @@
 package cache
 
-import "time"
+import (
+	"sync"
+	"time"
+)
 
 type entry struct {
 	value     any
@@ -9,7 +12,8 @@ type entry struct {
 }
 
 type TTLCache struct {
-	m map[string]entry
+	m   map[string]entry
+	mtx sync.RWMutex
 }
 
 func New() *TTLCache {
@@ -19,6 +23,8 @@ func New() *TTLCache {
 }
 
 func (c *TTLCache) Get(key string) (value any, fetchedAt time.Time, ok bool) {
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
 
 	v, ok := c.m[key]
 	if !ok {
@@ -35,6 +41,9 @@ func (c *TTLCache) Get(key string) (value any, fetchedAt time.Time, ok bool) {
 }
 
 func (c *TTLCache) Set(key string, value any, ttl time.Duration) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
 	c.m[key] = entry{
 		value:     value,
 		expiresAt: time.Now().Add(ttl),
