@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -74,7 +75,7 @@ func (c *Client) geocode(ctx context.Context, city string) (name string, lat, lo
 	return fmt.Sprintf("%s, %s, %s", dto.Results[0].Name, dto.Results[0].Admin1, dto.Results[0].Country), dto.Results[0].Latitude, dto.Results[0].Longitude, err
 }
 
-func (c *Client) getCurrentWeather(ctx context.Context, lat, lon float64) (*ForecastResp, error) {
+func (c *Client) getCurrentWeather(ctx context.Context, lat, lon float64, days, hours int) (*ForecastResp, error) {
 	api, err := url.ParseRequestURI(openMeteoAPI)
 	if err != nil {
 		return nil, err
@@ -86,7 +87,8 @@ func (c *Client) getCurrentWeather(ctx context.Context, lat, lon float64) (*Fore
 	params := url.Values{}
 	params.Set("latitude", latitude)
 	params.Set("longitude", longitude)
-	params.Set("forecast_days", "1")
+	params.Set("forecast_days", strconv.Itoa(days))
+	params.Set("forecast_hours", strconv.Itoa(hours))
 	params.Set("hourly", "temperature_2m,weather_code,wind_speed_10m,precipitation_probability")
 	params.Set("daily", "temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,weather_code")
 	params.Set("current", "temperature_2m,visibility,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_direction_10m,precipitation,pressure_msl,weather_code")
@@ -126,7 +128,7 @@ func (c *Client) GetToday(ctx context.Context, city string) (domain.Today, error
 		return domain.Today{}, err
 	}
 
-	forecast, err := c.getCurrentWeather(ctx, lat, lon)
+	forecast, err := c.getCurrentWeather(ctx, lat, lon, 1, 1)
 	if err != nil {
 		return domain.Today{}, err
 	}
@@ -146,14 +148,81 @@ func (c *Client) GetToday(ctx context.Context, city string) (domain.Today, error
 	}, nil
 }
 
-// https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.41&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,weather_code&hourly=,temperature_2m,weather_code,wind_speed_10m,precipitation_probability&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_direction_10m,precipitation,pressure_msl,weather_code&forecast_days=1
-
 func (c *Client) GetHourly(ctx context.Context, city string, hours int) ([]domain.HourlyEntry, error) {
-	return nil, nil
+	_, lat, lon, err := c.geocode(ctx, city)
+	if err != nil {
+		return nil, err
+	}
+
+	forecast, err := c.getCurrentWeather(ctx, lat, lon, 0, hours)
+	if err != nil {
+		return nil, err
+	}
+
+	res := make([]domain.HourlyEntry, len(forecast.HourlyDTO.Time))
+
+	for i := 0; i < len(forecast.HourlyDTO.Time); i++ {
+
+		timestamp, err := parseISOTime(forecast.HourlyDTO.Time[i])
+		if err != nil {
+			return nil, err
+		}
+
+		hour := domain.HourlyEntry{
+			Temperature:              forecast.HourlyDTO.Temperature2m[i],
+			Conditions:               weatherCodeToText(forecast.HourlyDTO.WeatherCode[i]),
+			WindSpeed:                forecast.HourlyDTO.WindSpeed10m[i],
+			PrecipitationProbability: forecast.HourlyDTO.PrecipitationProbability[i],
+			Time:                     timestamp,
+		}
+
+		res[i] = hour
+	}
+
+	return res, nil
 }
 
 func (c *Client) GetDaily(ctx context.Context, city string, days int) ([]domain.DailyEntry, error) {
-	return nil, nil
+	city, lat, lon, err := c.geocode(ctx, city)
+	if err != nil {
+		return nil, err
+	}
+
+	forecast, err := c.getCurrentWeather(ctx, lat, lon, days, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	res := make([]domain.DailyEntry, len(forecast.DailyDTO.Time))
+
+	for i := 0; i < len(forecast.DailyDTO.Time); i++ {
+
+		timestamp, err := parseISOTime(forecast.DailyDTO.Time[i])
+		if err != nil {
+			return nil, err
+		}
+
+		day := domain.DailyEntry{
+			MinTemperature:           forecast.DailyDTO.Temperature2mMin[i],
+			MaxTemperature:           forecast.DailyDTO.Temperature2mMax[i],
+			PrecipitationProbability: forecast.DailyDTO.PrecipitationProbabilityMax[i],
+			WindSpeed:                forecast.DailyDTO.WindSpeed10mMax[i],
+			Conditions:               weatherCodeToText(forecast.DailyDTO.WeatherCode[i]),
+			Date:                     timestamp,
+		}
+
+		res[i] = day
+	}
+
+	return res, nil
+}
+
+func parseISOTime(s string) (time.Time, error) {
+	if strings.Contains(s, "T") {
+		return time.Parse("2006-01-02T15:04", s)
+	}
+
+	return time.Parse("2006-01-02", s)
 }
 
 func weatherCodeToText(code uint) string {

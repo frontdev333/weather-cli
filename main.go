@@ -11,17 +11,21 @@ func main() {
 	client := openmeteo.NewClient()
 	ctx := context.Background()
 
-	// Тест с контекстом
-	today, err := client.GetToday(ctx, "Tokyo")
+	hourly, err := client.GetHourly(ctx, "Paris", 12)
 	if err != nil {
 		log.Fatal(err)
 	}
+	for _, h := range hourly {
+		fmt.Printf("%s: %.1f°C, precipitation %.0f%%\n",
+			h.Time.Format("15:04"), h.Temperature, h.PrecipitationProbability)
+	}
 
-	fmt.Printf("City: %s\n", today.City)
-	fmt.Printf("Temperature: %.1f°C (feels like %.1f°C)\n",
-		today.Temperature, today.FeelsLike)
-	fmt.Printf("Condition: %s\n", today.Conditions)
-	fmt.Printf("Wind: %.1f m/s at %d°\n",
-		today.WindSpeed, today.WindDirection)
-	fmt.Printf("Humidity: %d%%\n", today.Humidity)
+	daily, err := client.GetDaily(ctx, "Berlin", 7)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, d := range daily {
+		fmt.Printf("%s: %.1f°C - %.1f°C, %s\n",
+			d.Date.Format("Jan 02"), d.MinTemperature, d.MaxTemperature, d.Conditions)
+	}
 }

@@ -21,7 +21,7 @@ type HourlyEntry struct {
 	Conditions               string
 	WindSpeed                float64
 	PrecipitationProbability float64
-	UpdatedAt                time.Time
+	Time                     time.Time
 }
 
 type DailyEntry struct {
