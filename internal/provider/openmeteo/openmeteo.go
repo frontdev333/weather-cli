@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"frontdev333/weather-cli/internal/domain"
+	"frontdev333/weather-cli/internal/retry"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -44,12 +45,20 @@ func (c *Client) geocode(ctx context.Context, city string) (name string, lat, lo
 
 	api.RawQuery = params.Encode()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, api.String(), nil)
-	if err != nil {
-		return "", 0, 0, err
-	}
+	var res *http.Response
 
-	res, err := c.httpClient.Do(req)
+	err = retry.Do(ctx, 2, 250*time.Millisecond, func() error {
+		var req *http.Request
+
+		req, err = http.NewRequestWithContext(ctx, http.MethodGet, api.String(), nil)
+		if err != nil {
+			return err
+		}
+
+		res, err = c.httpClient.Do(req)
+		return err
+	})
+
 	if err != nil {
 		return "", 0, 0, err
 	}
@@ -95,12 +104,19 @@ func (c *Client) getCurrentWeather(ctx context.Context, lat, lon float64, days, 
 
 	api.RawQuery = params.Encode()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, api.String(), nil)
-	if err != nil {
-		return nil, err
-	}
+	var res *http.Response
 
-	res, err := c.httpClient.Do(req)
+	err = retry.Do(ctx, 2, 250*time.Millisecond, func() error {
+		var req *http.Request
+
+		req, err = http.NewRequestWithContext(ctx, http.MethodGet, api.String(), nil)
+		if err != nil {
+			return err
+		}
+
+		res, err = c.httpClient.Do(req)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
