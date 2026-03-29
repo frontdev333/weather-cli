@@ -1,27 +1,26 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"frontdev333/weather-cli/internal/domain"
+	"frontdev333/weather-cli/internal/provider/openmeteo"
 	"frontdev333/weather-cli/internal/ui"
-	"time"
+	"log"
 )
 
 func main() {
-	today := domain.Today{
-		City:          "Moscow, Moscow, Russia",
-		Temperature:   -5.2,
-		FeelsLike:     -9.1,
-		Conditions:    "Снег",
-		WindSpeed:     3.5,
-		WindDirection: 180,
-		Humidity:      85,
-		Pressure:      1015,
-		Precipitation: 2.3,
-		UpdatedAt:     time.Now().Add(-3 * time.Minute),
-	}
+	client := openmeteo.NewClient()
+	ctx := context.Background()
 
-	fmt.Print(ui.Header("Moscow", true, today.UpdatedAt))
-	fmt.Print(ui.RenderToday(today))
-	fmt.Print(ui.RenderMenu())
+	hourly, err := client.GetHourly(ctx, "Paris", 12)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Print(ui.RenderHourly(hourly))
+
+	daily, err := client.GetDaily(ctx, "Berlin", 7)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Print(ui.RenderDaily(daily))
 }

@@ -110,3 +110,35 @@ func RenderMenu() string {
 	res.WriteString(wrap("[1] Почасовой (12 ч)  [2] На 7 дней  [C] Сменить город  [R] Обновить  [Q] Выход\n", gray))
 	return res.String()
 }
+
+func RenderHourly(list []domain.HourlyEntry) string {
+	var res strings.Builder
+	tb := tabwriter.NewWriter(&res, 0, 0, 2, ' ', 0)
+
+	fmt.Fprintf(tb, "Почасовой прогноз (%d часов):\n", len(list))
+	fmt.Fprintf(tb, "Время\t| t°C\t| Осадки\t| Ветер м/с\n")
+	fmt.Fprintf(tb, wrap("------------------------------------\n", gray))
+
+	for _, v := range list {
+		fmt.Fprintf(tb, " %s\t| %s\t| %.0f%%\t| %.1f\n", v.Time.Format("15:04"), f642ClrdStr(v.Temperature), v.PrecipitationProbability, v.WindSpeed)
+	}
+
+	tb.Flush()
+
+	return res.String()
+}
+
+func RenderDaily(list []domain.DailyEntry) string {
+	var res strings.Builder
+	tb := tabwriter.NewWriter(&res, 0, 0, 2, ' ', 0)
+
+	fmt.Fprintf(tb, "Прогноз на неделю:\n")
+	fmt.Fprintf(tb, "Дата\t| Мин°C\t| Макс°C\t| Осадки\n")
+	fmt.Fprintf(tb, wrap("------------------------------------\n", gray))
+	for _, v := range list {
+		fmt.Fprintf(tb, "%s %s\t| %s \t| %s \t| %.1f\n", v.Date.Format("02 Jan"), iconForCondition(v.Conditions), f642ClrdStr(v.MinTemperature), colorTemp(v.MaxTemperature, f642ClrdStr(v.MaxTemperature)), v.PrecipitationProbability)
+	}
+
+	tb.Flush()
+	return res.String()
+}
