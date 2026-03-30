@@ -1,7 +1,6 @@
 package config
 
 import (
-	"errors"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -14,19 +13,7 @@ type Config struct {
 func Load() (Config, error) {
 	bytes, err := os.ReadFile(getConfigPath())
 	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			return Config{}, err
-		}
-
-		cfg := Config{
-			DefaultCity: "Moscow",
-		}
-
-		if err = Save(cfg); err != nil {
-			return Config{}, err
-		}
-
-		return cfg, nil
+		return Config{}, err
 	}
 
 	var cfg Config

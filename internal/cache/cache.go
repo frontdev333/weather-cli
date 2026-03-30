@@ -24,18 +24,21 @@ func New() *TTLCache {
 
 func (c *TTLCache) Get(key string) (value any, fetchedAt time.Time, ok bool) {
 	c.mtx.RLock()
-	defer c.mtx.RUnlock()
-
 	v, ok := c.m[key]
 	if !ok {
+		c.mtx.RUnlock()
 		return nil, time.Time{}, false
 	}
 
 	if v.expiresAt.After(time.Now()) {
+		c.mtx.RUnlock()
 		return v.value, v.fetchedAt, true
 	}
+	c.mtx.RUnlock()
 
+	c.mtx.Lock()
 	delete(c.m, key)
+	c.mtx.Unlock()
 
 	return nil, time.Time{}, false
 }
@@ -49,4 +52,10 @@ func (c *TTLCache) Set(key string, value any, ttl time.Duration) {
 		expiresAt: time.Now().Add(ttl),
 		fetchedAt: time.Now(),
 	}
+}
+
+func (c *TTLCache) Clear() {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	c.m = make(map[string]entry)
 }

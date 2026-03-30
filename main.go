@@ -1,26 +1,14 @@
 package main
 
 import (
-	"context"
-	"fmt"
-	"frontdev333/weather-cli/internal/provider/openmeteo"
-	"frontdev333/weather-cli/internal/ui"
-	"log"
+	"frontdev333/weather-cli/internal/app"
+	"log/slog"
 )
 
 func main() {
-	client := openmeteo.NewClient()
-	ctx := context.Background()
-
-	hourly, err := client.GetHourly(ctx, "Paris", 12)
+	err := app.Run()
 	if err != nil {
-		log.Fatal(err)
+		slog.Error(err.Error())
+		return
 	}
-	fmt.Print(ui.RenderHourly(hourly))
-
-	daily, err := client.GetDaily(ctx, "Berlin", 7)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Print(ui.RenderDaily(daily))
 }
