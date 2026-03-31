@@ -94,7 +94,7 @@ func RenderToday(t domain.Today) string {
 	fmt.Fprintf(tb, "Сегодня в %s [%s]\n", wrap(t.City, bold), iconForCondition(t.Conditions))
 	fmt.Fprintf(tb, "Температура:\t%s (ощущается как %s°C)\n", f642ClrdStr(t.Temperature), f642ClrdStr(t.FeelsLike))
 	fmt.Fprintf(tb, "Условие:\t%s\n", t.Conditions)
-	fmt.Fprintf(tb, "Ветер:\t%.1f м/с (180°)\n", t.WindSpeed)
+	fmt.Fprintf(tb, "Ветер:\t%.1f км/ч (180°)\n", t.WindSpeed)
 	fmt.Fprintf(tb, "Влажность:\t%d%%\n", t.Humidity)
 	fmt.Fprintf(tb, "Давление:\t%.1f hPa\n", t.Pressure)
 	fmt.Fprintf(tb, "Видимость:\t%.1f\n", t.Visibility)
@@ -116,7 +116,7 @@ func RenderHourly(list []domain.HourlyEntry) string {
 	tb := tabwriter.NewWriter(&res, 0, 0, 2, ' ', 0)
 
 	fmt.Fprintf(tb, "Почасовой прогноз (%d часов):\n", len(list))
-	fmt.Fprintf(tb, "Время\t| t°C\t| Осадки\t| Ветер м/с\n")
+	fmt.Fprintf(tb, "Время\t| t°C\t| Осадки\t| Ветер км/ч\n")
 	fmt.Fprintf(tb, wrap("------------------------------------\n", gray))
 
 	for _, v := range list {
@@ -136,7 +136,7 @@ func RenderDaily(list []domain.DailyEntry) string {
 	fmt.Fprintf(tb, "Дата\t| Мин°C\t| Макс°C\t| Осадки\n")
 	fmt.Fprintf(tb, wrap("------------------------------------\n", gray))
 	for _, v := range list {
-		fmt.Fprintf(tb, "%s %s\t| %s \t| %s \t| %.1f\n", v.Date.Format("02 Jan"), iconForCondition(v.Conditions), f642ClrdStr(v.MinTemperature), colorTemp(v.MaxTemperature, f642ClrdStr(v.MaxTemperature)), v.PrecipitationProbability)
+		fmt.Fprintf(tb, "%s %s\t| %s \t| %s \t| %.1f\n", v.Date.Format("02 Jan"), iconForCondition(v.Conditions), f642ClrdStr(v.MinTemperature), f642ClrdStr(v.MaxTemperature), v.PrecipitationProbability)
 	}
 
 	tb.Flush()

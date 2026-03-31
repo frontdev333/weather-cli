@@ -19,6 +19,37 @@ const (
 	openMeteoAPI = "https://api.open-meteo.com/v1/forecast"
 )
 
+var wmoCodes = map[uint]string{
+	0:  "Ясно",
+	1:  "Преимущественно ясно",
+	2:  "Переменная облачность",
+	3:  "Пасмурно",
+	45: "Туман",
+	48: "Туман с изморозью",
+	51: "Легкая морось",
+	53: "Морось",
+	55: "Сильная морось",
+	56: "Ледяная морось (легкая)",
+	57: "Ледяная морось (сильная)",
+	61: "Легкий дождь",
+	63: "Дождь",
+	65: "Сильный дождь",
+	66: "Ледяной дождь (легкий)",
+	67: "Ледяной дождь (сильный)",
+	71: "Легкий снег",
+	73: "Снег",
+	75: "Сильный снег",
+	77: "Снежная крупа",
+	80: "Легкий ливневый дождь",
+	81: "Ливневый дождь",
+	82: "Сильный ливневый дождь",
+	85: "Легкие снеговые ливни",
+	86: "Снеговые ливни",
+	95: "Гроза",
+	96: "Гроза с градом (легкая)",
+	99: "Гроза с градом (сильная)",
+}
+
 type Client struct {
 	httpClient *http.Client
 }
@@ -78,7 +109,7 @@ func (c *Client) geocode(ctx context.Context, city string) (name string, lat, lo
 	}
 
 	if len(dto.Results) == 0 {
-		return "", 0, 0, errors.New("city not found")
+		return "", 0, 0, errors.New("город не найден")
 	}
 
 	return fmt.Sprintf("%s, %s, %s", dto.Results[0].Name, dto.Results[0].Admin1, dto.Results[0].Country), dto.Results[0].Latitude, dto.Results[0].Longitude, err
@@ -96,6 +127,7 @@ func (c *Client) getCurrentWeather(ctx context.Context, lat, lon float64, days, 
 	params := url.Values{}
 	params.Set("latitude", latitude)
 	params.Set("longitude", longitude)
+	params.Set("timezone", "auto")
 	params.Set("forecast_days", strconv.Itoa(days))
 	params.Set("forecast_hours", strconv.Itoa(hours))
 	params.Set("hourly", "temperature_2m,weather_code,wind_speed_10m,precipitation_probability")
@@ -242,28 +274,8 @@ func parseISOTime(s string) (time.Time, error) {
 }
 
 func weatherCodeToText(code uint) string {
-	switch {
-	case code == 0:
-		return "Ясно"
-	case code >= 1 && code <= 3:
-		return "Преимущественно ясно / переменная облачность / пасмурно"
-	case code == 45 || code == 48:
-		return "Туман / туман с изморозью"
-	case code >= 51 && code <= 57:
-		return "Морось (в т.ч. ледяная)"
-	case code >= 61 && code <= 67:
-		return "Дождь (в т.ч. ледяной)"
-	case code >= 71 && code <= 77:
-		return "Снег / снежная крупа"
-	case code >= 80 && code <= 82:
-		return "Ливневый дождь"
-	case code >= 85 && code <= 86:
-		return "Снеговые ливни"
-	case code == 95:
-		return "Гроза"
-	case code == 96 || code == 99:
-		return "Гроза с градом"
-	default:
-		return "Неизвестные погодные условия"
+	if text, ok := wmoCodes[code]; ok {
+		return text
 	}
+	return "Неизвестные погодные условия"
 }
