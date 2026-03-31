@@ -16,16 +16,17 @@ import (
 	"time"
 )
 
-type Application struct {
-	Config   *config.Config
-	Cache    *cache.TTLCache
-	City     string
-	Provider provider.WeatherProvider
+type application struct {
+	config   *config.Config
+	cache    *cache.TTLCache
+	city     string
+	provider provider.WeatherProvider
 }
 
 func Run() error {
 
 	cfg, err := config.Load()
+	openMeteoProvider := openmeteo.NewClient()
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			return err
@@ -41,6 +42,11 @@ func Run() error {
 				fmt.Println("Город не может быть пустым.")
 				continue
 			}
+
+			if _, err = openMeteoProvider.GetDaily(context.Background(), city, 1); err != nil {
+				fmt.Println("Город не найден. Проверьте на ошибки ввода.")
+				continue
+			}
 			break
 		}
 
@@ -50,19 +56,17 @@ func Run() error {
 		}
 	}
 
-	openMeteoProvider := openmeteo.NewClient()
-
-	application := Application{
-		Config:   &cfg,
-		Cache:    cache.New(),
-		City:     cfg.DefaultCity,
-		Provider: openMeteoProvider,
+	application := application{
+		config:   &cfg,
+		cache:    cache.New(),
+		city:     cfg.DefaultCity,
+		provider: openMeteoProvider,
 	}
 
 	return application.loop()
 }
 
-func (a *Application) loop() error {
+func (a *application) loop() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -78,20 +82,24 @@ func (a *Application) loop() error {
 		switch strings.ToLower(strings.TrimSpace(scanner.Text())) {
 		case "1":
 			if err = a.renderHourly(ctx); err != nil {
-				return err
+				fmt.Printf("Ошибка: %v\n", err)
+				continue
 			}
 		case "2":
 			if err = a.renderDaily(ctx); err != nil {
-				return err
+				fmt.Printf("Ошибка: %v\n", err)
+				continue
 			}
 		case "c":
 			if err = a.changeCity(ctx, scanner); err != nil {
-				return err
+				fmt.Printf("Ошибка: %v\n", err)
+				continue
 			}
 		case "r":
-			a.Cache.Clear()
+			a.cache.Clear()
 			if err = a.renderToday(ctx); err != nil {
-				return err
+				fmt.Printf("Ошибка: %v\n", err)
+				continue
 			}
 		case "q":
 			cancel()
@@ -99,7 +107,8 @@ func (a *Application) loop() error {
 		default:
 			fmt.Println("неизвестная команда.")
 			if err = a.renderToday(ctx); err != nil {
-				return err
+				fmt.Printf("Ошибка: %v\n", err)
+				continue
 			}
 		}
 		fmt.Print(ui.RenderMenu())
@@ -107,15 +116,15 @@ func (a *Application) loop() error {
 	return nil
 }
 
-func (a *Application) renderToday(ctx context.Context) error {
-	val, fetchedAt, isCached := a.Cache.Get(a.City + ":today")
+func (a *application) renderToday(ctx context.Context) error {
+	val, fetchedAt, isCached := a.cache.Get(a.city + ":today")
 	if !isCached {
-		t, err := a.Provider.GetToday(ctx, a.City)
+		t, err := a.provider.GetToday(ctx, a.city)
 		if err != nil {
 			return err
 		}
-		a.Cache.Set(a.City+":today", t, 5*time.Minute)
-		fmt.Print(ui.Header(a.City, isCached, t.UpdatedAt))
+		a.cache.Set(a.city+":today", t, 5*time.Minute)
+		fmt.Print(ui.Header(a.city, isCached, t.UpdatedAt))
 		fmt.Print(ui.RenderToday(t))
 		return nil
 	}
@@ -125,20 +134,20 @@ func (a *Application) renderToday(ctx context.Context) error {
 		return errors.New("unable to get today forecast")
 	}
 
-	fmt.Print(ui.Header(a.City, isCached, fetchedAt))
+	fmt.Print(ui.Header(a.city, isCached, fetchedAt))
 	fmt.Print(ui.RenderToday(t))
 	return nil
 }
 
-func (a *Application) renderHourly(ctx context.Context) error {
-	val, fethedAt, isCached := a.Cache.Get(a.City + ":hourly")
+func (a *application) renderHourly(ctx context.Context) error {
+	val, fethedAt, isCached := a.cache.Get(a.city + ":hourly")
 	if !isCached {
-		h, err := a.Provider.GetHourly(ctx, a.City, 12)
+		h, err := a.provider.GetHourly(ctx, a.city, 12)
 		if err != nil {
 			return err
 		}
-		a.Cache.Set(a.City+":hourly", h, 15*time.Minute)
-		fmt.Print(ui.Header(a.City, isCached, time.Now()))
+		a.cache.Set(a.city+":hourly", h, 15*time.Minute)
+		fmt.Print(ui.Header(a.city, isCached, time.Now()))
 		fmt.Print(ui.RenderHourly(h))
 		return nil
 	}
@@ -148,20 +157,20 @@ func (a *Application) renderHourly(ctx context.Context) error {
 		return errors.New("unable to get hourly forecast")
 	}
 
-	fmt.Print(ui.Header(a.City, isCached, fethedAt))
+	fmt.Print(ui.Header(a.city, isCached, fethedAt))
 	fmt.Print(ui.RenderHourly(h))
 	return nil
 }
 
-func (a *Application) renderDaily(ctx context.Context) error {
-	val, fetchedAt, isCached := a.Cache.Get(a.City + ":daily")
+func (a *application) renderDaily(ctx context.Context) error {
+	val, fetchedAt, isCached := a.cache.Get(a.city + ":daily")
 	if !isCached {
-		d, err := a.Provider.GetDaily(ctx, a.City, 7)
+		d, err := a.provider.GetDaily(ctx, a.city, 7)
 		if err != nil {
 			return err
 		}
-		a.Cache.Set(a.City+":daily", d, 5*time.Minute)
-		fmt.Print(ui.Header(a.City, isCached, time.Now()))
+		a.cache.Set(a.city+":daily", d, 30*time.Minute)
+		fmt.Print(ui.Header(a.city, isCached, time.Now()))
 		fmt.Print(ui.RenderDaily(d))
 		return nil
 	}
@@ -171,29 +180,29 @@ func (a *Application) renderDaily(ctx context.Context) error {
 		return errors.New("unable to get daily forecast")
 	}
 
-	fmt.Print(ui.Header(a.City, isCached, fetchedAt))
+	fmt.Print(ui.Header(a.city, isCached, fetchedAt))
 	fmt.Print(ui.RenderDaily(d))
 	return nil
 }
 
-func (a *Application) changeCity(ctx context.Context, scanner *bufio.Scanner) error {
+func (a *application) changeCity(ctx context.Context, scanner *bufio.Scanner) error {
 	fmt.Println("Введите новый город: ")
 	for scanner.Scan() {
 		city := strings.TrimSpace(scanner.Text())
 		if len(city) == 0 {
 			fmt.Println("Город не может быть пустым.")
-			return nil
+			continue
 		}
 
-		if _, err := a.Provider.GetToday(ctx, city); err != nil {
+		if _, err := a.provider.GetToday(ctx, city); err != nil {
 			fmt.Println("Город введен некорректно.")
-			return nil
+			continue
 		}
 
-		a.Cache.Clear()
-		a.City = city
-		a.Config.DefaultCity = city
-		return config.Save(*a.Config)
+		a.cache.Clear()
+		a.city = city
+		a.config.DefaultCity = city
+		return config.Save(*a.config)
 	}
 	return nil
 }

@@ -30,7 +30,7 @@
 ### Клонирование репозитория
 
 ```bash
-git clone <repository-url>
+git clone git@github.com:frontdev333/weather-cli.git
 cd weather-cli
 ```
 
