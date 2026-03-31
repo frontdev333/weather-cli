@@ -82,7 +82,7 @@ func Header(city string, cached bool, fetchedAt time.Time) string {
 	when := time.Since(fetchedAt).Minutes()
 	var msg string
 
-	if when < 60*60 {
+	if when < 1 {
 		msg = " • только что"
 	} else {
 		msg = fmt.Sprintf(" • обновлено %.0f мин назад", when)
