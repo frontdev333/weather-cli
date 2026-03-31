@@ -79,7 +79,16 @@ func Header(city string, cached bool, fetchedAt time.Time) string {
 	var res strings.Builder
 
 	res.WriteString(city)
-	res.WriteString(fmt.Sprintf(" • обновлено %.0f мин назад", time.Since(fetchedAt).Minutes()))
+	when := time.Since(fetchedAt).Minutes()
+	var msg string
+
+	if when < 60*60 {
+		msg = " • только что"
+	} else {
+		msg = fmt.Sprintf(" • обновлено %.0f мин назад", when)
+	}
+
+	res.WriteString(msg)
 	if cached {
 		res.WriteString(" • из кэша")
 	}
@@ -89,15 +98,21 @@ func Header(city string, cached bool, fetchedAt time.Time) string {
 
 func RenderToday(t domain.Today) string {
 	builder := &strings.Builder{}
+	var visibility string
+	if t.Visibility != 0 {
+		visibility = fmt.Sprintf("%.1f км.", t.Visibility/1000)
+	} else {
+		visibility = " - "
+	}
 
 	tb := tabwriter.NewWriter(builder, 0, 0, 2, ' ', 0)
 	fmt.Fprintf(tb, "Сегодня в %s [%s]\n", wrap(t.City, bold), iconForCondition(t.Conditions))
 	fmt.Fprintf(tb, "Температура:\t%s (ощущается как %s°C)\n", f642ClrdStr(t.Temperature), f642ClrdStr(t.FeelsLike))
 	fmt.Fprintf(tb, "Условие:\t%s\n", t.Conditions)
-	fmt.Fprintf(tb, "Ветер:\t%.1f км/ч (180°)\n", t.WindSpeed)
+	fmt.Fprintf(tb, "Ветер:\t%.1f км/ч (%d°)\n", t.WindSpeed, t.WindDirection)
 	fmt.Fprintf(tb, "Влажность:\t%d%%\n", t.Humidity)
 	fmt.Fprintf(tb, "Давление:\t%.1f hPa\n", t.Pressure)
-	fmt.Fprintf(tb, "Видимость:\t%.1f\n", t.Visibility)
+	fmt.Fprintf(tb, "Видимость:\t%s\n", visibility)
 	fmt.Fprintf(tb, "Осадки (1ч):\t%.1f мм\n", t.Precipitation)
 	tb.Flush()
 
@@ -133,10 +148,19 @@ func RenderDaily(list []domain.DailyEntry) string {
 	tb := tabwriter.NewWriter(&res, 0, 0, 2, ' ', 0)
 
 	fmt.Fprintf(tb, "Прогноз на неделю:\n")
-	fmt.Fprintf(tb, "Дата\t| Мин°C\t| Макс°C\t| Осадки\n")
+	fmt.Fprintf(tb, "Дата\t| Мин°C\t| Макс°C\t| Осадки\t| Ветер км/ч\n")
 	fmt.Fprintf(tb, wrap("------------------------------------\n", gray))
 	for _, v := range list {
-		fmt.Fprintf(tb, "%s %s\t| %s \t| %s \t| %.1f\n", v.Date.Format("02 Jan"), iconForCondition(v.Conditions), f642ClrdStr(v.MinTemperature), f642ClrdStr(v.MaxTemperature), v.PrecipitationProbability)
+		fmt.Fprintf(
+			tb,
+			"%s %s\t| %s \t| %s \t| %.0f%%\t| %.1f\n",
+			v.Date.Format("02 Jan"),
+			iconForCondition(v.Conditions),
+			f642ClrdStr(v.MinTemperature),
+			f642ClrdStr(v.MaxTemperature),
+			v.PrecipitationProbability,
+			v.WindSpeed,
+		)
 	}
 
 	tb.Flush()
