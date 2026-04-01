@@ -128,6 +128,7 @@ func (c *Client) getCurrentWeather(ctx context.Context, lat, lon float64, days, 
 	params.Set("latitude", latitude)
 	params.Set("longitude", longitude)
 	params.Set("timezone", "auto")
+	params.Set("wind_speed_unit", "ms")
 	params.Set("forecast_days", strconv.Itoa(days))
 	params.Set("forecast_hours", strconv.Itoa(hours))
 	params.Set("hourly", "temperature_2m,weather_code,wind_speed_10m,precipitation_probability")
