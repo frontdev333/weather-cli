@@ -45,29 +45,29 @@ go mod download
 #### Локальная сборка
 
 ```bash
-go build -o weather-cli
+go build -o weather-cli ./cmd/weathercli
 ```
 
 #### Кросс-платформенная сборка
 
 Для macOS (Apple Silicon):
 ```bash
-GOOS=darwin GOARCH=arm64 go build -o weather-cli
+GOOS=darwin GOARCH=arm64 go build -o weather-cli ./cmd/weathercli
 ```
 
 Для macOS (Intel):
 ```bash
-GOOS=darwin GOARCH=amd64 go build -o weather-cli
+GOOS=darwin GOARCH=amd64 go build -o weather-cli ./cmd/weathercli
 ```
 
 Для Linux:
 ```bash
-GOOS=linux GOARCH=amd64 go build -o weather-cli
+GOOS=linux GOARCH=amd64 go build -o weather-cli ./cmd/weathercli
 ```
 
 Для Windows:
 ```bash
-GOOS=windows GOARCH=amd64 go build -o weather-cli.exe
+GOOS=windows GOARCH=amd64 go build -o weather-cli ./cmd/weathercli.exe
 ```
 
 ### Запуск приложения
@@ -152,7 +152,9 @@ default_city: Moscow
 
 ```
 weather-cli/
-├── main.go                      # Точка входа приложения
+└── cmd/
+│    └── weathercli/
+│       └── main.go                      # Точка входа приложения
 ├── config.yaml                  # Конфигурационный файл
 ├── go.mod                       # Зависимости Go
 ├── go.sum                       # Хэши зависимостей
